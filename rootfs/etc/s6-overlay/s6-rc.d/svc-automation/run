@@ -16,6 +16,9 @@ while [ $timeout -gt 0 ]; do
     fi
     sleep 1
     timeout=$((timeout - 1))
+    if [ $((timeout % 10)) -eq 0 ]; then
+        echo "[svc-automation] Still waiting for Chrome CDP... ($timeout seconds left)"
+    fi
 done
 
 if [ $timeout -eq 0 ]; then
@@ -23,5 +26,9 @@ if [ $timeout -eq 0 ]; then
     exit 1
 fi
 
+echo "[svc-automation] Starting Python automation bot..."
 cd /app/automation
-exec python3 -u bot.py
+
+# Run Python with unbuffered output (-u) and force stdout/stderr to be line-buffered
+# Using exec so s6 properly supervises the Python process
+exec stdbuf -oL -eL python3 -u bot.py 2>&1

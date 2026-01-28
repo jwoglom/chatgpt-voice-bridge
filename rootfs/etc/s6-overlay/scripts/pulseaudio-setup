@@ -5,29 +5,51 @@ set -e
 echo "[pulseaudio-setup] Waiting for PulseAudio to be ready..."
 
 # PulseAudio runs as user abc in linuxserver containers
-# We need to find the correct socket
+# Set environment for abc user
 export HOME=/config
 export XDG_RUNTIME_DIR=/run/user/911
+export DISPLAY=:1
 
-# Wait for PulseAudio daemon to be ready
-timeout=60
+# First wait for pulseaudio process to start (it depends on X11)
+timeout=120
+echo "[pulseaudio-setup] Waiting for PulseAudio process to start..."
 while [ $timeout -gt 0 ]; do
-    # Try to connect to PulseAudio
-    if s6-setuidgid abc pactl info >/dev/null 2>&1; then
-        echo "[pulseaudio-setup] PulseAudio is ready!"
+    if pgrep -x pulseaudio >/dev/null 2>&1; then
+        echo "[pulseaudio-setup] PulseAudio process found!"
         break
     fi
     sleep 1
     timeout=$((timeout - 1))
     if [ $((timeout % 10)) -eq 0 ]; then
-        echo "[pulseaudio-setup] Still waiting for PulseAudio... ($timeout seconds left)"
+        echo "[pulseaudio-setup] Still waiting for PulseAudio process... ($timeout seconds left)"
     fi
 done
 
 if [ $timeout -eq 0 ]; then
-    echo "[pulseaudio-setup] ERROR: PulseAudio not available after 60s"
-    echo "[pulseaudio-setup] Debug: Checking for pulseaudio process..."
-    pgrep -a pulseaudio || echo "No pulseaudio process found"
+    echo "[pulseaudio-setup] ERROR: PulseAudio process not found after 120s"
+    exit 1
+fi
+
+# Give PulseAudio a moment to initialize its socket
+sleep 2
+
+# Now wait for pactl to be able to connect
+timeout=30
+echo "[pulseaudio-setup] Waiting for PulseAudio to accept connections..."
+while [ $timeout -gt 0 ]; do
+    if s6-setuidgid abc pactl info >/dev/null 2>&1; then
+        echo "[pulseaudio-setup] PulseAudio is accepting connections!"
+        break
+    fi
+    sleep 1
+    timeout=$((timeout - 1))
+done
+
+if [ $timeout -eq 0 ]; then
+    echo "[pulseaudio-setup] ERROR: PulseAudio not accepting connections after 30s"
+    echo "[pulseaudio-setup] Debug info:"
+    pgrep -a pulseaudio || echo "No pulseaudio process"
+    ls -la /run/user/911/pulse/ 2>/dev/null || echo "No pulse socket dir"
     exit 1
 fi
 
