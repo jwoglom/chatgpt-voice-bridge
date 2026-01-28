@@ -10,46 +10,49 @@ export HOME=/config
 export XDG_RUNTIME_DIR=/run/user/911
 export DISPLAY=:1
 
-# First wait for pulseaudio process to start (it depends on X11)
+# Wait for pulseaudio to be running AND accepting connections
+# PulseAudio might restart a few times, so we wait for stable operation
 timeout=120
-echo "[pulseaudio-setup] Waiting for PulseAudio process to start..."
+connected=false
+
+echo "[pulseaudio-setup] Waiting for PulseAudio to be ready and accepting connections..."
 while [ $timeout -gt 0 ]; do
-    if pgrep -x pulseaudio >/dev/null 2>&1; then
-        echo "[pulseaudio-setup] PulseAudio process found!"
-        break
+    # Check if pulseaudio is running
+    if pgrep pulseaudio >/dev/null 2>&1; then
+        # Try to connect
+        if s6-setuidgid abc pactl info >/dev/null 2>&1; then
+            echo "[pulseaudio-setup] PulseAudio is running and accepting connections!"
+            connected=true
+            break
+        fi
     fi
+
     sleep 1
     timeout=$((timeout - 1))
     if [ $((timeout % 10)) -eq 0 ]; then
-        echo "[pulseaudio-setup] Still waiting for PulseAudio process... ($timeout seconds left)"
+        # Show status every 10 seconds
+        if pgrep pulseaudio >/dev/null 2>&1; then
+            echo "[pulseaudio-setup] PulseAudio running, waiting for socket... ($timeout seconds left)"
+        else
+            echo "[pulseaudio-setup] Waiting for PulseAudio process... ($timeout seconds left)"
+        fi
     fi
 done
 
-if [ $timeout -eq 0 ]; then
-    echo "[pulseaudio-setup] ERROR: PulseAudio process not found after 120s"
-    exit 1
-fi
-
-# Give PulseAudio a moment to initialize its socket
-sleep 2
-
-# Now wait for pactl to be able to connect
-timeout=30
-echo "[pulseaudio-setup] Waiting for PulseAudio to accept connections..."
-while [ $timeout -gt 0 ]; do
-    if s6-setuidgid abc pactl info >/dev/null 2>&1; then
-        echo "[pulseaudio-setup] PulseAudio is accepting connections!"
-        break
-    fi
-    sleep 1
-    timeout=$((timeout - 1))
-done
-
-if [ $timeout -eq 0 ]; then
-    echo "[pulseaudio-setup] ERROR: PulseAudio not accepting connections after 30s"
+if [ "$connected" != "true" ]; then
+    echo "[pulseaudio-setup] ERROR: Could not connect to PulseAudio after 120s"
     echo "[pulseaudio-setup] Debug info:"
-    pgrep -a pulseaudio || echo "No pulseaudio process"
+    echo "--- Processes ---"
+    ps aux | grep -E "(pulse|audio)" | grep -v grep || echo "No audio processes"
+    echo "--- Socket directories ---"
+    ls -la /run/user/ 2>/dev/null || echo "No /run/user"
+    ls -la /run/user/911/ 2>/dev/null || echo "No /run/user/911"
     ls -la /run/user/911/pulse/ 2>/dev/null || echo "No pulse socket dir"
+    ls -la /tmp/pulse* 2>/dev/null || echo "No /tmp/pulse*"
+    echo "--- Environment ---"
+    echo "HOME=$HOME"
+    echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+    echo "PULSE_SERVER=${PULSE_SERVER:-not set}"
     exit 1
 fi
 
