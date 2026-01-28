@@ -1,0 +1,1 @@
+<sip:${SIP_USER}@${SIP_SERVER};transport=${SIP_TRANSPORT:-tcp}>;auth_pass=${SIP_PASS};outbound="${SIP_OUTBOUND}";regint=${SIP_REGINT:-600};answermode=auto

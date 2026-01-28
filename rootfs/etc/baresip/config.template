@@ -1,0 +1,25 @@
+# Baresip configuration - generated from template
+# Module path is set dynamically by the run script
+module_path     ${MOD_PATH}
+
+# Audio configuration for PulseAudio virtual devices
+# VirtualMic: Baresip plays remote caller audio here -> goes to Chrome as mic
+audio_player    pulse,VirtualMic
+# VirtualSpeaker.monitor: Baresip captures Chrome/ChatGPT audio from here
+audio_source    pulse,VirtualSpeaker.monitor
+# Alert sounds also go to VirtualMic
+audio_alert     pulse,VirtualMic
+
+# SIP settings
+sip_listen      0.0.0.0:5060
+sip_transport   ${SIP_TRANSPORT:-tcp},udp
+
+# Modules
+module          pulse.so
+module          g711.so
+module          account.so
+module          contact.so
+module          menu.so
+
+# Auto-answer incoming calls
+answermode      auto

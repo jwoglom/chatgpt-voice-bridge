@@ -1,0 +1,53 @@
+#!/command/with-contenv bash
+# shellcheck shell=bash
+set -e
+
+echo "[pulseaudio-setup] Waiting for PulseAudio to be ready..."
+
+# Wait for PulseAudio daemon to be ready
+timeout=60
+while [ $timeout -gt 0 ]; do
+    if pactl info >/dev/null 2>&1; then
+        echo "[pulseaudio-setup] PulseAudio is ready!"
+        break
+    fi
+    sleep 1
+    timeout=$((timeout - 1))
+done
+
+if [ $timeout -eq 0 ]; then
+    echo "[pulseaudio-setup] ERROR: PulseAudio not available after 60s"
+    exit 1
+fi
+
+# Create shared directory for call signaling
+mkdir -p /alloc
+chmod 777 /alloc
+
+echo "[pulseaudio-setup] Creating virtual audio devices..."
+
+# VirtualMic: Where Baresip plays audio TO (this goes to ChatGPT as microphone input)
+pactl load-module module-null-sink \
+    sink_name=VirtualMic \
+    sink_properties=device.description="Input_To_ChatGPT"
+
+# VirtualSpeaker: Where browser/ChatGPT audio goes (Baresip captures from this)
+pactl load-module module-null-sink \
+    sink_name=VirtualSpeaker \
+    sink_properties=device.description="Output_From_ChatGPT"
+
+# RealMic: Remap VirtualMic.monitor as a source so Chrome sees it as a microphone
+pactl load-module module-remap-source \
+    source_name=RealMic \
+    master=VirtualMic.monitor \
+    source_properties=device.description="ChatGPT_Microphone"
+
+# Set defaults
+pactl set-default-sink VirtualSpeaker
+pactl set-default-source RealMic
+
+echo "[pulseaudio-setup] Virtual audio routing configured:"
+echo "  - VirtualMic sink (Baresip plays here -> goes to Chrome as mic)"
+echo "  - VirtualSpeaker sink (Chrome plays here -> Baresip captures)"
+echo "  - RealMic source (Chrome uses as microphone input)"
+echo "[pulseaudio-setup] Done!"

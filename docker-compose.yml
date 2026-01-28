@@ -1,0 +1,63 @@
+services:
+  chatgpt-voice-bridge:
+    build: .
+    container_name: chatgpt-voice-bridge
+
+    # Required for Chrome stability
+    shm_size: "1gb"
+
+    # Security settings required for Chrome/KasmVNC
+    security_opt:
+      - seccomp:unconfined
+
+    # Capabilities required for Baresip SIP networking
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    # Port mappings
+    ports:
+      - "3000:3000"      # KasmVNC HTTP
+      - "3001:3001"      # KasmVNC HTTPS
+      - "5060:5060/udp"  # SIP UDP
+      - "5060:5060/tcp"  # SIP TCP
+      - "9229:9229"      # Chrome debugging (optional, for external access)
+
+    # Environment variables
+    environment:
+      # Container user/group
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+
+      # KasmVNC web interface credentials (optional)
+      - CUSTOM_USER=${CUSTOM_USER:-}
+      - PASSWORD=${PASSWORD:-}
+
+      # SIP configuration (required)
+      - SIP_USER=${SIP_USER}
+      - SIP_PASS=${SIP_PASS}
+      - SIP_SERVER=${SIP_SERVER}
+
+      # SIP optional settings
+      - SIP_TRANSPORT=${SIP_TRANSPORT:-tcp}
+      - SIP_OUTBOUND=${SIP_OUTBOUND:-}
+      - SIP_REGINT=${SIP_REGINT:-600}
+
+      # Chrome debugging port
+      - CHROME_DEBUGGING_PORT=9229
+
+    # Persistent storage for Chrome profile
+    volumes:
+      - ./config:/config
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "/scripts/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+    # Restart policy
+    restart: unless-stopped
