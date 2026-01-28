@@ -6,19 +6,19 @@ set -e
 
 CDP_PORT="${CHROME_DEBUGGING_PORT:-9229}"
 
-# Check 1: PulseAudio is running
-if ! pactl info >/dev/null 2>&1; then
+# Check 1: PulseAudio is running (run as abc user)
+if ! s6-setuidgid abc pactl info >/dev/null 2>&1; then
     echo "UNHEALTHY: PulseAudio not responding"
     exit 1
 fi
 
 # Check 2: Virtual audio sinks exist
-if ! pactl list short sinks | grep -q "VirtualMic"; then
+if ! s6-setuidgid abc pactl list short sinks | grep -q "VirtualMic"; then
     echo "UNHEALTHY: VirtualMic sink not found"
     exit 1
 fi
 
-if ! pactl list short sinks | grep -q "VirtualSpeaker"; then
+if ! s6-setuidgid abc pactl list short sinks | grep -q "VirtualSpeaker"; then
     echo "UNHEALTHY: VirtualSpeaker sink not found"
     exit 1
 fi
@@ -41,9 +41,9 @@ if ! pgrep -f "python3.*bot.py" >/dev/null; then
     exit 1
 fi
 
-# Check 6: KasmVNC web interface is accessible
+# Check 6: KasmVNC/nginx web interface is accessible
 if ! curl -sf "http://localhost:3000/" >/dev/null; then
-    echo "UNHEALTHY: KasmVNC web interface not responding"
+    echo "UNHEALTHY: Web interface not responding"
     exit 1
 fi
 

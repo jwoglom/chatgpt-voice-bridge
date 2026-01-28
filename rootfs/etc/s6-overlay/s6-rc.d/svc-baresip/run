@@ -3,8 +3,9 @@
 set -e
 
 # Create baresip config directory
-BARESIP_DIR="/root/.baresip"
+BARESIP_DIR="/config/.baresip"
 mkdir -p "$BARESIP_DIR"
+chown abc:abc "$BARESIP_DIR"
 
 # Find module path
 MOD_FILE=$(find /usr/lib -name pulse.so 2>/dev/null | grep baresip | head -n 1)
@@ -18,11 +19,12 @@ export MOD_PATH
 # Generate config from template using envsubst
 envsubst < /etc/baresip/config.template > "$BARESIP_DIR/config"
 envsubst < /etc/baresip/accounts.template > "$BARESIP_DIR/accounts"
+chown abc:abc "$BARESIP_DIR/config" "$BARESIP_DIR/accounts"
 
 echo "[svc-baresip] Starting Baresip with call detection..."
 
-# Start baresip and monitor output for call events
-exec baresip -f "$BARESIP_DIR" -v 2>&1 | while read -r line; do
+# Start baresip as user abc (to access PulseAudio) and monitor output for call events
+exec s6-setuidgid abc baresip -f "$BARESIP_DIR" -v 2>&1 | while read -r line; do
     echo "$line"
 
     if echo "$line" | grep -q "call: answering call"; then
