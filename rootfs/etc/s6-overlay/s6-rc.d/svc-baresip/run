@@ -2,10 +2,12 @@
 # shellcheck shell=bash
 set -e
 
+# PULSE_SERVER is set in Dockerfile to unix:/alloc/pulse/socket
+echo "[svc-baresip] Using PULSE_SERVER=$PULSE_SERVER"
+
 # Create baresip config directory
-BARESIP_DIR="/config/.baresip"
+BARESIP_DIR="/root/.baresip"
 mkdir -p "$BARESIP_DIR"
-chown abc:abc "$BARESIP_DIR"
 
 # Find module path
 MOD_FILE=$(find /usr/lib -name pulse.so 2>/dev/null | grep baresip | head -n 1)
@@ -19,14 +21,15 @@ export MOD_PATH
 # Generate config from template using envsubst
 envsubst < /etc/baresip/config.template > "$BARESIP_DIR/config"
 envsubst < /etc/baresip/accounts.template > "$BARESIP_DIR/accounts"
-chown abc:abc "$BARESIP_DIR/config" "$BARESIP_DIR/accounts"
 
+echo "[svc-baresip] Generated config:"
+cat "$BARESIP_DIR/config"
 echo "[svc-baresip] Starting Baresip..."
 
 # Run baresip and process output for call detection
 # Output goes to stdout (visible in docker logs) and we monitor for call events
 # Use stdbuf to force line buffering so output appears immediately
-stdbuf -oL s6-setuidgid abc baresip -f "$BARESIP_DIR" -v 2>&1 | while IFS= read -r line; do
+stdbuf -oL baresip -f "$BARESIP_DIR" -v 2>&1 | while IFS= read -r line; do
     # Print line to stdout (docker logs will capture this)
     printf '%s\n' "$line"
 

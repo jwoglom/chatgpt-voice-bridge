@@ -2,85 +2,54 @@
 # shellcheck shell=bash
 set -e
 
-echo "[pulseaudio-setup] Waiting for PulseAudio to be ready..."
+echo "[pulseaudio-setup] Waiting for PulseAudio socket..."
 
-# PulseAudio runs as user abc in linuxserver containers
-# Set environment for abc user
-export HOME=/config
-export XDG_RUNTIME_DIR=/run/user/911
-export DISPLAY=:1
+# Use the socket path from our custom pulseaudio service
+export PULSE_SERVER="unix:/alloc/pulse/socket"
 
-# Wait for pulseaudio to be running AND accepting connections
-# PulseAudio might restart a few times, so we wait for stable operation
-timeout=120
-connected=false
-
-echo "[pulseaudio-setup] Waiting for PulseAudio to be ready and accepting connections..."
+# Wait for socket to exist
+timeout=60
 while [ $timeout -gt 0 ]; do
-    # Check if pulseaudio is running
-    if pgrep pulseaudio >/dev/null 2>&1; then
-        # Try to connect
-        if s6-setuidgid abc pactl info >/dev/null 2>&1; then
-            echo "[pulseaudio-setup] PulseAudio is running and accepting connections!"
-            connected=true
-            break
-        fi
+    if [ -S /alloc/pulse/socket ]; then
+        echo "[pulseaudio-setup] PulseAudio socket found!"
+        break
     fi
-
     sleep 1
     timeout=$((timeout - 1))
     if [ $((timeout % 10)) -eq 0 ]; then
-        # Show status every 10 seconds
-        if pgrep pulseaudio >/dev/null 2>&1; then
-            echo "[pulseaudio-setup] PulseAudio running, waiting for socket... ($timeout seconds left)"
-        else
-            echo "[pulseaudio-setup] Waiting for PulseAudio process... ($timeout seconds left)"
-        fi
+        echo "[pulseaudio-setup] Waiting for socket... ($timeout seconds left)"
     fi
 done
 
-if [ "$connected" != "true" ]; then
-    echo "[pulseaudio-setup] ERROR: Could not connect to PulseAudio after 120s"
-    echo "[pulseaudio-setup] Debug info:"
-    echo "--- Processes ---"
-    ps aux | grep -E "(pulse|audio)" | grep -v grep || echo "No audio processes"
-    echo "--- Socket directories ---"
-    ls -la /run/user/ 2>/dev/null || echo "No /run/user"
-    ls -la /run/user/911/ 2>/dev/null || echo "No /run/user/911"
-    ls -la /run/user/911/pulse/ 2>/dev/null || echo "No pulse socket dir"
-    ls -la /tmp/pulse* 2>/dev/null || echo "No /tmp/pulse*"
-    echo "--- Environment ---"
-    echo "HOME=$HOME"
-    echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
-    echo "PULSE_SERVER=${PULSE_SERVER:-not set}"
+if [ ! -S /alloc/pulse/socket ]; then
+    echo "[pulseaudio-setup] ERROR: PulseAudio socket not found after 60s"
+    ls -la /alloc/ 2>/dev/null || echo "No /alloc directory"
     exit 1
 fi
 
-# Create shared directory for call signaling
-mkdir -p /alloc
-chmod 777 /alloc
+# Make socket accessible
+chmod 777 /alloc/pulse/socket
 
-echo "[pulseaudio-setup] Creating virtual audio devices..."
+# Wait for pactl to connect
+sleep 2
+timeout=30
+while [ $timeout -gt 0 ]; do
+    if pactl -s unix:/alloc/pulse/socket info >/dev/null 2>&1; then
+        echo "[pulseaudio-setup] PulseAudio accepting connections!"
+        break
+    fi
+    sleep 1
+    timeout=$((timeout - 1))
+done
 
-# VirtualMic: Where Baresip plays audio TO (this goes to ChatGPT as microphone input)
-s6-setuidgid abc pactl load-module module-null-sink \
-    sink_name=VirtualMic \
-    sink_properties=device.description="Input_To_ChatGPT"
-
-# VirtualSpeaker: Where browser/ChatGPT audio goes (Baresip captures from this)
-s6-setuidgid abc pactl load-module module-null-sink \
-    sink_name=VirtualSpeaker \
-    sink_properties=device.description="Output_From_ChatGPT"
-
-# RealMic: Remap VirtualMic.monitor as a source so Chrome sees it as a microphone
-s6-setuidgid abc pactl load-module module-remap-source \
-    source_name=RealMic \
-    master=VirtualMic.monitor \
-    source_properties=device.description="ChatGPT_Microphone"
+if [ $timeout -eq 0 ]; then
+    echo "[pulseaudio-setup] ERROR: Cannot connect to PulseAudio"
+    exit 1
+fi
 
 # Set defaults
-s6-setuidgid abc pactl set-default-sink VirtualSpeaker
-s6-setuidgid abc pactl set-default-source RealMic
+pactl -s unix:/alloc/pulse/socket set-default-source RealMic
+pactl -s unix:/alloc/pulse/socket set-default-sink VirtualSpeaker
 
 echo "[pulseaudio-setup] Virtual audio routing configured:"
 echo "  - VirtualMic sink (Baresip plays here -> goes to Chrome as mic)"

@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
-    # PulseAudio utilities
+    # PulseAudio (full package for running our own server)
+    pulseaudio \
     pulseaudio-utils \
     # Utilities for healthcheck and config
     curl \
@@ -42,6 +43,7 @@ RUN chmod +x /etc/s6-overlay/scripts/* \
 # Environment variables
 ENV CHROME_CLI="--no-sandbox --remote-debugging-port=9229 --remote-allow-origins=* --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required"
 ENV CHROME_DEBUGGING_PORT=9229
+ENV PULSE_SERVER="unix:/alloc/pulse/socket"
 
 # Expose ports
 # 3000 - KasmVNC HTTP
