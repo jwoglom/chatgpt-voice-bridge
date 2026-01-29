@@ -9,18 +9,24 @@ echo "[svc-pulseaudio-custom] Starting PulseAudio..."
 mkdir -p /alloc/pulse
 rm -f /alloc/pulse/socket
 
-# Run PulseAudio in system mode (proper way to run as root)
-# --system: run as system-wide PA daemon (no user session needed)
-# --daemonize=no: stay in foreground for s6 supervision
-# --exit-idle-time=-1: never exit on idle
-# Loads match the original Nomad audio-hub task exactly
+# Create a runtime directory PulseAudio can actually use
+mkdir -p /var/run/pulse
+chmod 755 /var/run/pulse
+
+# Set HOME to a writable location (the original Nomad container
+# ran in debian:bookworm-slim where /root was writable; in this
+# linuxserver image it isn't)
+export HOME=/var/run/pulse
+export XDG_RUNTIME_DIR=/var/run/pulse
+
+# Run PulseAudio in user mode (matching original Nomad audio-hub task)
+# The original used: pulseaudio --start --daemonize=no --exit-idle-time=-1 --verbose
+# We skip --start since s6 manages the lifecycle
 exec pulseaudio \
-    --system \
     --daemonize=no \
     --exit-idle-time=-1 \
     --verbose \
     --log-target=stderr \
-    --disallow-module-loading=false \
     --load="module-native-protocol-unix socket=/alloc/pulse/socket auth-anonymous=1" \
     --load="module-null-sink sink_name=VirtualMic sink_properties=device.description=Input_To_ChatGPT" \
     --load="module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=Output_From_ChatGPT" \
