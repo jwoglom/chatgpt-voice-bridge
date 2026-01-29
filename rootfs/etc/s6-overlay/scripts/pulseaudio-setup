@@ -1,58 +1,20 @@
 #!/command/with-contenv bash
 # shellcheck shell=bash
+# Matches the post-startup logic from the original Nomad audio-hub task
 set -e
 
-echo "[pulseaudio-setup] Waiting for PulseAudio socket..."
+echo "[pulseaudio-setup] Waiting for PulseAudio socket at /alloc/pulse/socket..."
 
-# Use the socket path from our custom pulseaudio service
-export PULSE_SERVER="unix:/alloc/pulse/socket"
-
-# Wait for socket to exist
-timeout=60
-while [ $timeout -gt 0 ]; do
-    if [ -S /alloc/pulse/socket ]; then
-        echo "[pulseaudio-setup] PulseAudio socket found!"
-        break
-    fi
+# Wait for socket to appear (same pattern as original Nomad config)
+while [ ! -S /alloc/pulse/socket ]; do
     sleep 1
-    timeout=$((timeout - 1))
-    if [ $((timeout % 10)) -eq 0 ]; then
-        echo "[pulseaudio-setup] Waiting for socket... ($timeout seconds left)"
-    fi
 done
 
-if [ ! -S /alloc/pulse/socket ]; then
-    echo "[pulseaudio-setup] ERROR: PulseAudio socket not found after 60s"
-    ls -la /alloc/ 2>/dev/null || echo "No /alloc directory"
-    exit 1
-fi
+echo "[pulseaudio-setup] Socket found. Adjusting permissions..."
+chmod -R 777 /alloc/pulse
 
-# Make socket accessible
-chmod 777 /alloc/pulse/socket
-
-# Wait for pactl to connect
-sleep 2
-timeout=30
-while [ $timeout -gt 0 ]; do
-    if pactl -s unix:/alloc/pulse/socket info >/dev/null 2>&1; then
-        echo "[pulseaudio-setup] PulseAudio accepting connections!"
-        break
-    fi
-    sleep 1
-    timeout=$((timeout - 1))
-done
-
-if [ $timeout -eq 0 ]; then
-    echo "[pulseaudio-setup] ERROR: Cannot connect to PulseAudio"
-    exit 1
-fi
-
-# Set defaults
+# Set defaults (matching original Nomad audio-hub task)
 pactl -s unix:/alloc/pulse/socket set-default-source RealMic
 pactl -s unix:/alloc/pulse/socket set-default-sink VirtualSpeaker
 
-echo "[pulseaudio-setup] Virtual audio routing configured:"
-echo "  - VirtualMic sink (Baresip plays here -> goes to Chrome as mic)"
-echo "  - VirtualSpeaker sink (Chrome plays here -> Baresip captures)"
-echo "  - RealMic source (Chrome uses as microphone input)"
 echo "[pulseaudio-setup] Done!"

@@ -1,6 +1,6 @@
 #!/command/with-contenv bash
 # shellcheck shell=bash
-# Custom PulseAudio service - based on working Nomad config
+# Custom PulseAudio service — closely matches original Nomad audio-hub task
 set -e
 
 echo "[svc-pulseaudio-custom] Starting PulseAudio..."
@@ -9,13 +9,18 @@ echo "[svc-pulseaudio-custom] Starting PulseAudio..."
 mkdir -p /alloc/pulse
 rm -f /alloc/pulse/socket
 
-# Start PulseAudio with virtual sinks (matching original Nomad config)
-# Run as root since we need to create the socket in /alloc
+# Run PulseAudio in system mode (proper way to run as root)
+# --system: run as system-wide PA daemon (no user session needed)
+# --daemonize=no: stay in foreground for s6 supervision
+# --exit-idle-time=-1: never exit on idle
+# Loads match the original Nomad audio-hub task exactly
 exec pulseaudio \
+    --system \
     --daemonize=no \
     --exit-idle-time=-1 \
     --verbose \
     --log-target=stderr \
+    --disallow-module-loading=false \
     --load="module-native-protocol-unix socket=/alloc/pulse/socket auth-anonymous=1" \
     --load="module-null-sink sink_name=VirtualMic sink_properties=device.description=Input_To_ChatGPT" \
     --load="module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=Output_From_ChatGPT" \

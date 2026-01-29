@@ -20,6 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools \
     && rm -rf /var/lib/apt/lists/*
 
+# Disable the base image's PulseAudio service - we run our own
+# (prevents two PA instances from conflicting)
+RUN if [ -d /etc/s6-overlay/s6-rc.d/svc-pulseaudio ]; then \
+      echo '#!/bin/sh' > /etc/s6-overlay/s6-rc.d/svc-pulseaudio/run && \
+      echo 'exec sleep infinity' >> /etc/s6-overlay/s6-rc.d/svc-pulseaudio/run && \
+      chmod +x /etc/s6-overlay/s6-rc.d/svc-pulseaudio/run; \
+    fi
+
 # Install Python dependencies
 COPY automation/requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
