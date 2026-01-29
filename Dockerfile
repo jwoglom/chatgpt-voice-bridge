@@ -2,15 +2,18 @@ FROM linuxserver/chromium:latest
 
 # Install additional dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Baresip SIP client and dependencies
+    # Baresip SIP client and all modules
     baresip \
+    baresip-core \
+    # PulseAudio client library for baresip
+    libpulse0 \
+    # PulseAudio (full package for running our own server)
+    pulseaudio \
+    pulseaudio-utils \
     # Python for automation
     python3 \
     python3-pip \
     python3-venv \
-    # PulseAudio (full package for running our own server)
-    pulseaudio \
-    pulseaudio-utils \
     # Utilities for healthcheck and config
     curl \
     netcat-openbsd \
@@ -18,7 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     # Network tools for Baresip
     net-tools \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Debug: show where baresip modules are
+    && find /usr/lib -name "*.so" -path "*/baresip/*" 2>/dev/null || true
 
 # Disable the base image's PulseAudio service - we run our own
 # (prevents two PA instances from conflicting)

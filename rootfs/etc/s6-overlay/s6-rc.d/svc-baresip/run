@@ -9,14 +9,25 @@ echo "[svc-baresip] Using PULSE_SERVER=$PULSE_SERVER"
 BARESIP_DIR="/root/.baresip"
 mkdir -p "$BARESIP_DIR"
 
-# Find module path
-MOD_FILE=$(find /usr/lib -name pulse.so 2>/dev/null | grep baresip | head -n 1)
+# Find module path — search broadly, the path varies by distro/arch
+MOD_FILE=$(find /usr/lib -name pulse.so -path "*/baresip/*" 2>/dev/null | head -n 1)
 if [ -z "$MOD_FILE" ]; then
-    echo "[svc-baresip] ERROR: Could not find baresip pulse.so module"
+    # Fallback: search for any baresip modules directory
+    MOD_FILE=$(find /usr/lib -name "g711.so" -path "*/baresip/*" 2>/dev/null | head -n 1)
+fi
+if [ -z "$MOD_FILE" ]; then
+    echo "[svc-baresip] ERROR: Could not find any baresip modules"
+    echo "[svc-baresip] Debug: searching for anything baresip-related..."
+    find /usr/lib -path "*baresip*" 2>/dev/null || echo "  nothing found under /usr/lib"
+    dpkg -L baresip 2>/dev/null | head -20 || echo "  dpkg -L baresip failed"
+    dpkg -L baresip-core 2>/dev/null | head -20 || echo "  dpkg -L baresip-core failed"
+    sleep 30
     exit 1
 fi
 MOD_PATH=$(dirname "$MOD_FILE")
 export MOD_PATH
+echo "[svc-baresip] Module path: $MOD_PATH"
+echo "[svc-baresip] Available modules: $(ls "$MOD_PATH"/*.so 2>/dev/null | xargs -n1 basename)"
 
 # Generate config from template using envsubst
 envsubst < /etc/baresip/config.template > "$BARESIP_DIR/config"
