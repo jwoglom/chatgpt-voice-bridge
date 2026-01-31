@@ -9,8 +9,33 @@ echo "[svc-baresip] Using PULSE_SERVER=$PULSE_SERVER"
 BARESIP_DIR="/root/.baresip"
 mkdir -p "$BARESIP_DIR"
 
-# Find module path — search broadly, the path varies by distro/arch
-MOD_FILE=$(find /usr/lib -name pulse.so -path "*/baresip/*" 2>/dev/null | head -n 1)
+# Generate /etc/asound.conf to map ALSA devices to PulseAudio
+# We use the 'type pulse' plugin (provided by libasound2-plugins)
+# Append to existing config (created in Dockerfile)
+cat <<EOF >> /etc/asound.conf
+pcm.baresip_player {
+    type pulse
+    device "VirtualMic"
+}
+
+pcm.baresip_recorder {
+    type pulse
+    device "VirtualSpeaker.monitor"
+}
+
+ctl.baresip_player {
+    type pulse
+    device "VirtualMic"
+}
+
+ctl.baresip_recorder {
+    type pulse
+    device "VirtualSpeaker.monitor"
+}
+EOF
+
+# Find module path — search for alsa.so instead of pulse.so
+MOD_FILE=$(find /usr/lib -name alsa.so -path "*/baresip/*" 2>/dev/null | head -n 1)
 if [ -z "$MOD_FILE" ]; then
     # Fallback: search for any baresip modules directory
     MOD_FILE=$(find /usr/lib -name "g711.so" -path "*/baresip/*" 2>/dev/null | head -n 1)

@@ -19,10 +19,8 @@ chmod 755 /var/run/pulse
 export HOME=/var/run/pulse
 export XDG_RUNTIME_DIR=/var/run/pulse
 
-# Run PulseAudio in user mode (matching original Nomad audio-hub task)
-# The original used: pulseaudio --start --daemonize=no --exit-idle-time=-1 --verbose
-# We skip --start since s6 manages the lifecycle
-exec pulseaudio \
+# Run PulseAudio in background (matching original Nomad audio-hub task)
+pulseaudio \
     --daemonize=no \
     --exit-idle-time=-1 \
     --verbose \
@@ -30,5 +28,29 @@ exec pulseaudio \
     --load="module-native-protocol-unix socket=/alloc/pulse/socket auth-anonymous=1" \
     --load="module-null-sink sink_name=VirtualMic sink_properties=device.description=Input_To_ChatGPT" \
     --load="module-null-sink sink_name=VirtualSpeaker sink_properties=device.description=Output_From_ChatGPT" \
-    --load="module-remap-source master=VirtualMic.monitor source_name=RealMic source_properties=device.description=ChatGPT_Microphone" \
-    2>&1
+    --load="module-remap-source master=VirtualMic.monitor source_name=RealMic source_properties=device.description=ChatGPT_Microphone" &
+
+PULSE_PID=$!
+echo "[svc-pulseaudio-custom] Started PulseAudio (PID: $PULSE_PID). Waiting for socket..."
+
+# Wait for socket
+timeout=10
+while [ ! -S /alloc/pulse/socket ]; do
+    sleep 0.5
+    timeout=$((timeout - 1))
+    if [ $timeout -eq 0 ]; then
+        echo "[svc-pulseaudio-custom] ERROR: PulseAudio socket failed to appear"
+        exit 1
+    fi
+done
+
+echo "[svc-pulseaudio-custom] Socket found. Setting defaults..."
+# Set accessible permissions
+chmod -R 777 /alloc/pulse
+
+# Set defaults
+pactl -s unix:/alloc/pulse/socket set-default-source RealMic
+pactl -s unix:/alloc/pulse/socket set-default-sink VirtualSpeaker
+
+echo "[svc-pulseaudio-custom] PulseAudio ready. Monitoring process..."
+wait $PULSE_PID

@@ -4,18 +4,18 @@ module_path     ${MOD_PATH}
 
 # Audio configuration for PulseAudio virtual devices
 # VirtualMic: Baresip plays remote caller audio here -> goes to Chrome as mic
-audio_player    pulse,VirtualMic
+audio_player    alsa,baresip_player
 # VirtualSpeaker.monitor: Baresip captures Chrome/ChatGPT audio from here
-audio_source    pulse,VirtualSpeaker.monitor
+audio_source    alsa,baresip_recorder
 # Alert sounds also go to VirtualMic
-audio_alert     pulse,VirtualMic
+audio_alert     alsa,baresip_player
 
 # SIP settings
 sip_listen      0.0.0.0:5060
 sip_transport   ${SIP_TRANSPORT:-tcp},udp
 
 # Modules
-module          pulse.so
+module          alsa.so
 module          g711.so
 module          account.so
 module          contact.so

@@ -25,6 +25,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Debug: show where baresip modules are
     && find /usr/lib -name "*.so" -path "*/baresip/*" 2>/dev/null || true
 
+# Install ALSA plugins to bridge to PulseAudio
+RUN apt-get install -y --no-install-recommends libasound2-plugins
+
 # Disable the base image's PulseAudio service - we run our own
 # (prevents two PA instances from conflicting)
 RUN if [ -d /etc/s6-overlay/s6-rc.d/svc-pulseaudio ]; then \
@@ -54,9 +57,13 @@ RUN chmod +x /etc/s6-overlay/scripts/* \
     && chmod +x /scripts/healthcheck.sh
 
 # Environment variables
-ENV CHROME_CLI="--no-sandbox --remote-debugging-port=9229 --remote-allow-origins=* --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required"
+ENV CHROME_CLI="--no-sandbox --remote-debugging-port=9229 --remote-debugging-address=0.0.0.0 --remote-allow-origins=* --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --alsa-output-device=plug:default"
+ENV CHROMIUM_CLI="${CHROME_CLI}"
 ENV CHROME_DEBUGGING_PORT=9229
 ENV PULSE_SERVER="unix:/alloc/pulse/socket"
+
+# Pre-configure ALSA to use PulseAudio by default
+RUN echo 'pcm.!default { type pulse }\nctl.!default { type pulse }' > /etc/asound.conf
 
 # Expose ports
 # 3000 - KasmVNC HTTP
