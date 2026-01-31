@@ -57,7 +57,7 @@ RUN chmod +x /etc/s6-overlay/scripts/* \
     && chmod +x /scripts/healthcheck.sh
 
 # Environment variables
-ENV CHROME_CLI="--no-sandbox --remote-debugging-port=9229 --remote-debugging-address=0.0.0.0 --remote-allow-origins=* --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --alsa-output-device=plug:default"
+ENV CHROME_CLI="--no-sandbox --no-first-run --password-store=basic --start-maximized --test-type --remote-debugging-port=9229 --remote-debugging-address=0.0.0.0 --remote-allow-origins=* --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --alsa-output-device=plug:default"
 ENV CHROMIUM_CLI="${CHROME_CLI}"
 ENV CHROME_DEBUGGING_PORT=9229
 ENV PULSE_SERVER="unix:/alloc/pulse/socket"

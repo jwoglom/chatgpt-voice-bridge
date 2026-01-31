@@ -1,0 +1,33 @@
+#!/bin/bash
+echo "[custom-init] Overwriting Openbox autostart script..."
+
+# Ensure directory exists
+mkdir -p /config/.config/openbox
+
+# Write a robust autostart script specifically for this voice bridge
+# We bypass wrapped-chromium to ensure we control the flags and binary
+# We also redirect output to a log file for easier debugging
+cat > /config/.config/openbox/autostart <<EOF
+#!/bin/bash
+# Redirect all output to log file
+exec > /config/chrome_startup.log 2>&1
+
+echo "--- Chrome Autostart \$(date) ---"
+echo "CHROME_CLI: \$CHROME_CLI"
+
+# Double-check for lock files
+rm -f /config/SingletonLock
+rm -f /config/SingletonCookie
+rm -f /config/.config/chromium/SingletonLock
+rm -f /config/.config/chromium/SingletonCookie
+
+echo "Launching Chromium directly..."
+# Launch Chromium with the defined CLI flags
+# We run in foreground of this script, but this script is backgrounded by Openbox usually? 
+# Actually Openbox autostart is executed. We should probably exec it or just run it.
+# Using exec to replace shell
+exec /usr/lib/chromium/chromium \$CHROME_CLI
+EOF
+
+chmod +x /config/.config/openbox/autostart
+echo "[custom-init] Autostart script updated."
