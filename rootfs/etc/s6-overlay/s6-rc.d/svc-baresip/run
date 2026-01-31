@@ -60,7 +60,21 @@ envsubst < /etc/baresip/accounts.template > "$BARESIP_DIR/accounts"
 
 echo "[svc-baresip] Generated config:"
 cat "$BARESIP_DIR/config"
-echo "[svc-baresip] Starting Baresip..."
+
+# Wait for PulseAudio socket to be ready
+# Baresip uses ALSA which bridges to Pulse; if Pulse isn't ready, it might hang or fail
+echo "[svc-baresip] Waiting for PulseAudio socket ($PULSE_SERVER)..."
+PULSE_SOCKET_PATH=$(echo "$PULSE_SERVER" | sed 's/unix://')
+timeout=30
+while [ ! -S "$PULSE_SOCKET_PATH" ]; do
+    sleep 1
+    timeout=$((timeout - 1))
+    if [ $timeout -eq 0 ]; then
+        echo "[svc-baresip] WARNING: PulseAudio socket did not appear. Starting anyway, but audio might fail."
+        break
+    fi
+done
+echo "[svc-baresip] PulseAudio socket found (or timeout). Starting Baresip..."
 
 # Run baresip and process output for call detection
 # Output goes to stdout (visible in docker logs) and we monitor for call events
