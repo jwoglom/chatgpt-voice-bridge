@@ -12,7 +12,7 @@ audio_alert     alsa,baresip_player
 
 # SIP settings
 sip_listen      0.0.0.0:5060
-sip_transport   ${SIP_TRANSPORT:-tcp},udp
+sip_transport   ${SIP_TRANSPORT},udp
 
 # Modules
 module          alsa.so
